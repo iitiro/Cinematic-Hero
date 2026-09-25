@@ -1,0 +1,12 @@
+{
+  "rows": 2844,
+  "years": [
+    2005,
+    2025
+  ],
+  "missing_genre": 2844,
+  "missing_distributor": 824,
+  "missing_theaters": 200,
+  "duplicate_year_title_rows": 3,
+  "yearly_gross_reconciliation_max_abs_difference": 0.0
+}
