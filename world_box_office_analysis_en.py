@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import re
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 # SETTINGS
 BASE_DIR = Path(__file__).resolve().parent
-SOURCE_FILE = Path("/boxoffice_world_1977_2025.xlsx")
+SOURCE_FILE = BASE_DIR / "boxoffice_world_1977_2025.xlsx"
 FIG_DIR = BASE_DIR / "figures"
 TABLE_DIR = BASE_DIR / "tables"
 
@@ -28,8 +29,11 @@ COLORS = {
 
 WIDTH = 1800
 HEIGHT = 1050
-FONT_REGULAR = "/System/Library/Fonts/Supplemental/Arial.ttf"
-FONT_BOLD = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+# Matplotlib bundles DejaVu fonts, including on Linux and Windows.
+from matplotlib import font_manager
+
+FONT_REGULAR = font_manager.findfont(font_manager.FontProperties(family="DejaVu Sans"))
+FONT_BOLD = font_manager.findfont(font_manager.FontProperties(family="DejaVu Sans", weight="bold"))
 
 PERIODS = [
     (1977, 1989, "1977–1989"),
@@ -337,9 +341,33 @@ def make_figures(annual: pd.DataFrame, periods: pd.DataFrame) -> None:
 
 
 def main() -> None:
+    global FIG_DIR, TABLE_DIR
+    parser = argparse.ArgumentParser(description="Analyze worldwide box-office data (1977–2025).")
+    parser.add_argument("--input", type=Path, default=SOURCE_FILE, help="Workbook with an All Movies sheet")
+    parser.add_argument("--output", type=Path, default=BASE_DIR / "generated_world_en")
+    args = parser.parse_args()
+    if not args.input.is_file():
+        parser.error(f"Input workbook not found: {args.input}. Supply the worldwide dataset with --input.")
+    movies = pd.read_excel(args.input, sheet_name="All Movies")
+    required = {"Year", "Rank", "Worldwide", "Foreign", "Release Group"}
+    missing = required - set(movies.columns)
+    if missing:
+        parser.error(f"Missing columns: {sorted(missing)}")
+    if movies.empty:
+        parser.error("The All Movies sheet is empty")
+    for column in ["Year", "Rank", "Worldwide", "Foreign"]:
+        movies[column] = pd.to_numeric(movies[column], errors="raise")
+    if movies[["Year", "Rank", "Worldwide", "Release Group"]].isna().any().any():
+        parser.error("Year, Rank, Worldwide, and Release Group must not contain missing values")
+    if not movies["Year"].between(1977, 2025).all():
+        parser.error("Expected years from 1977 through 2025")
+    if 2019 not in movies["Year"].values or movies.loc[movies["Year"].eq(2019), "Worldwide"].sum() <= 0:
+        parser.error("Positive 2019 revenue is required for the baseline index")
+    if (movies.groupby("Year")["Worldwide"].sum() <= 0).any():
+        parser.error("Each year must have positive total worldwide revenue")
+    FIG_DIR, TABLE_DIR = args.output / "figures", args.output / "tables"
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
-    movies = pd.read_excel(SOURCE_FILE, sheet_name="All Movies")
     annual, periods, top20 = compute_metrics(movies)
     annual.to_csv(TABLE_DIR / "richni_pokaznyky.csv", index=False, encoding="utf-8-sig")
     periods.to_csv(TABLE_DIR / "pokaznyky_za_periodamy.csv", index=False, encoding="utf-8-sig")

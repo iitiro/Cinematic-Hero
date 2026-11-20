@@ -13,7 +13,7 @@ from matplotlib.ticker import FuncFormatter, PercentFormatter
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_INPUT = SCRIPT_DIR.parents[1] / "boxoffice_ukraine_2005_2025.xlsx"
+DEFAULT_INPUT = SCRIPT_DIR / "boxoffice_ukraine_2005_2025.xlsx"
 DEFAULT_OUTPUT = SCRIPT_DIR / "generated_ukraine_en"
 
 COLORS = {
@@ -465,10 +465,12 @@ def main() -> None:
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT, help="Source XLSX file")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Directory for figures and tables")
     args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
+    if not args.input.is_file():
+        parser.error(f"Input workbook not found: {args.input}")
 
     configure_plotting()
     movies, years, quality = load_and_validate(args.input)
+    args.output.mkdir(parents=True, exist_ok=True)
     yearly, period, top = build_metrics(movies, years)
     sample, year_arch, period_arch = build_archetype_tables(movies)
 
